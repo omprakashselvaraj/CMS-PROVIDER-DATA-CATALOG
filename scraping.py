@@ -29,7 +29,7 @@ class WebScrape():
         "safebrowsing.enabled": True
         })
         self.driver = webdriver.Chrome(options = self.chrome_options)
-        self.driver.set_window_size(1920, 1080)
+        #self.driver.set_window_size(1920, 1080)
         self.res = pd.DataFrame()
         self.categories = None
         self.file = 'metadata_file.xlsx'
@@ -44,7 +44,7 @@ class WebScrape():
         # self.driver = webdriver.Chrome(options = chrome_options)
         self.driver.get(self.page_url)
         time.sleep(5)
-        self.driver.execute_script("window.scrollBy(0,500)","")
+        #self.driver.execute_script("window.scrollBy(0,500)","")
         print('Page Loaded Successfully')
 
     def close_page(self):
@@ -65,7 +65,7 @@ class WebScrape():
             links = option.find_elements(By.TAG_NAME, "a")
             text = links[0].find_elements(By.TAG_NAME, "div")[0].text
             link_text.append(text)
-        self.categories = link_text
+        self.categories = link_text[5:10]
 
     def create_metadata_file(self):
         """
@@ -87,27 +87,42 @@ class WebScrape():
         path = os.path.join(self.parent_directory, new_folder)
         if os.path.exists(path):
             print('Folder already exist!!!')
+            return path
         else:
             os.makedirs(path)
-            current = os.path.join(path, "current_folder")
-            legacy = os.path.join(path, "legacy_folder")
-            os.makedirs(current)
-            os.makedirs(legacy)
-            print("Folder Created Successfully..")
-            return current
+            print("Folder Created Successfully !!!")
+            return path
+
+    def create_current_legacy(self, category_folder, folder_name):
+        if os.path.exists(category_folder):
+            category_folder_path = os.path.join(category_folder, folder_name)
+            os.makedirs(category_folder_path)
+            current_path = os.path.join(category_folder_path, "current")
+            legacy_path = os.path.join(category_folder_path, "legacy")
+            os.makedirs(current_path)
+            os.makedirs(legacy_path)
+            return category_folder_path, current_path, legacy_path
+
 
     def is_directory_empty(self, folder):
         contents = os.listdir(folder)
         return len(contents) == 0
 
-    def move_csv_files(self, source, destination):
+    def check_folder_exist(self, category_folder, folder):
+        path = os.path.join(category_folder, folder)
+        return os.path.exists(folder)
+
+    def move_csv_files(self, source, destination, file):
         files = os.listdir(source)
-        for file in files:
-            if file.endswith(".csv"):
-                source_path = os.path.join(source, file)
-                destination_path = os.path.join(destination, file)
+        if file in files:
+            source_path = os.path.join(source, file)
+            destination_path = os.path.join(destination, file)
+            try:
                 shutil.move(source_path, destination_path)
-                print(f"Moved {file} to {destination}")
+                print(print(f"Moved {file} to {destination}"))
+            except FileNotFoundError:
+                print(f"File not found in the source directory: {file}")
+
 
     def newest(self, path):
         files = os.listdir(path)
@@ -125,8 +140,10 @@ class WebScrape():
         """
         for cat in self.categories:
             source = os.getcwd()
-            destination = self.create_folder(cat)
+            category_folder = self.create_folder(cat)
             self.load_page()
+            scroll_distance = 600
+            self.driver.execute_script(f"window.scrollBy(0, {scroll_distance});")
             element = self.driver.find_element(By.LINK_TEXT, cat)
             self.driver.execute_script("arguments[0].click();", element)
             time.sleep(5)
@@ -144,26 +161,35 @@ class WebScrape():
                     date_list = date.find_elements(By.CLASS_NAME, "dataset-date-item")
                     last_update = date_list[0].text.split(': ')[1]
                     released_date = date_list[1].text.split(': ')[1]
+                    if ':' in name:
+                        name = name.replace(':','')
                     dic['dataset_name'] = name
                     dic['dataset_description'] = description
                     dic['last_update_date'] = last_update
                     dic['released_date'] = released_date
-                    # new_row = pd.DataFrame([dic])
-                    # self.res = pd.concat([self.res, new_row], ignore_index = True)
-                    # if self.is_directory_empty(destination):
-                    #     wait = WebDriverWait(self.driver, 10)
-                    #     tag = i.find_element(By.LINK_TEXT, 'Download CSV')
-                    #     download = wait.until(EC.element_to_be_clickable(tag))
-                    #     self.driver.execute_script("arguments[0].click();", download)
-                    #     print('Downloading file...')
-                    #     time.sleep(3)
-                    #     button = self.driver.find_element(By.XPATH, "/html//div[@id='main-content']/div//ol[@class='search-list']//dialog/div[@role='document']/main[@role='main']//button[.='Yes, download']")
-                    #     button.click()
-                    #     print('Download Success')
-                    #     time.sleep(30)
-                    #     file_dictionary[name] = self.newest(source) 
                     new_row = pd.DataFrame([dic])
                     self.res = pd.concat([self.res, new_row], ignore_index = True)
+
+                    if not self.check_folder_exist(category_folder, name):
+                        category_folder_path, current_path, legacy_path = self.create_current_legacy(category_folder, name)
+                        wait = WebDriverWait(self.driver, 10)
+                        tag = i.find_element(By.LINK_TEXT, 'Download CSV')
+                        download = wait.until(EC.element_to_be_clickable(tag))
+                        self.driver.execute_script("arguments[0].click();", download)
+                        print('Downloading file...')
+                        time.sleep(3)
+                        button = self.driver.find_element(By.XPATH, "/html//div[@id='main-content']/div//ol[@class='search-list']//dialog/div[@role='document']/main[@role='main']//button[.='Yes, download']")
+                        button.click()
+                        print('Download Success')
+                        if name == "National Downloadable File":
+                            time.sleep(180)
+                        else:
+                            time.sleep(30)
+                        file_name = self.newest(source)
+                        file_dictionary[name] = file_name
+                        self.move_csv_files(source, current_path, file_name)
+                    else:
+                        pass
 
                 try:
                     next_button = self.driver.find_element(By.XPATH, "/html//div[@id='main-content']/div/div[@class='row']/div[1]/div[@class='pagination-wrapper']/div/div[@class='pagination-container']/nav[@class='ds-c-pagination']/button[2]")
@@ -182,11 +208,10 @@ class WebScrape():
                 except NoSuchElementException:
                     break
             self.df_dic[cat] = self.res
+            self.file_dic[cat] = file_dictionary
             self.res = pd.DataFrame()
             print("Scrapping Successful in " + cat + " page")
-            if self.is_directory_empty(destination):
-                self.move_csv_files(source, destination)
-                self.pickle_dictionary()
+            
 
 
 
