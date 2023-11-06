@@ -65,7 +65,7 @@ class WebScrape():
             links = option.find_elements(By.TAG_NAME, "a")
             text = links[0].find_elements(By.TAG_NAME, "div")[0].text
             link_text.append(text)
-        self.categories = link_text[5:10]
+        self.categories = link_text
 
     def create_metadata_file(self):
         """
@@ -110,7 +110,7 @@ class WebScrape():
 
     def check_folder_exist(self, category_folder, folder):
         path = os.path.join(category_folder, folder)
-        return os.path.exists(folder)
+        return os.path.exists(path)
 
     def move_csv_files(self, source, destination, file):
         files = os.listdir(source)
@@ -129,8 +129,52 @@ class WebScrape():
         return max(files, key=os.path.getctime)
 
     def pickle_dictionary(self):
-        with open('filename_dictionary', 'wb') as file:
-            pickle.dump(self.file_dic, file)
+        file_name = 'filename_dictionary'
+        try:
+            with open(file_name, 'rb') as file:
+                existing_data = pickle.load(file)
+        except FileNotFoundError:
+            # If the file doesn't exist, create a new dictionary
+            existing_data = {}
+        existing_data.update(self.file_dic)
+
+        # Write the updated dictionary back to the pickle file
+        with open(file_name, 'wb') as file:
+            pickle.dump(existing_data, file)
+
+    def download(self, i, name):
+        wait = WebDriverWait(self.driver, 10)
+        tag = i.find_element(By.LINK_TEXT, 'Download CSV')
+        download = wait.until(EC.element_to_be_clickable(tag))
+        self.driver.execute_script("arguments[0].click();", download)
+        print('Downloading file...')
+        time.sleep(3)
+        button = self.driver.find_element(By.XPATH, "/html//div[@id='main-content']/div//ol[@class='search-list']//dialog/div[@role='document']/main[@role='main']//button[.='Yes, download']")
+        button.click()
+        print('Download Success')
+        if name == "National Downloadable File":
+            time.sleep(180)
+        else:
+            time.sleep(30)
+    
+    def last_date_same_asin_metadata(self, subcategory,dataset_name,updated_date):
+        # Provide the file path of your Excel file
+        file_path = 'metadata_file.xlsx'
+
+        # Use pandas to read the Excel file and get all sheet names
+        excel_file = pd.ExcelFile(file_path, engine='openpyxl')
+        sheet_names = excel_file.sheet_names
+
+        if subcategory in sheet_names:
+            df = pd.read_excel(excel_file, sheet_name=subcategory)
+            
+            if dataset_name in df['dataset_name'].values:
+                    
+                if not df[(df['dataset_name'] == dataset_name) & (df['last_update_date'] == updated_date)].empty:
+                    return True # dates are same
+                else:
+                    return False # dates do not match 
+
 
 
     def scrape_each_category(self):
@@ -170,26 +214,25 @@ class WebScrape():
                     new_row = pd.DataFrame([dic])
                     self.res = pd.concat([self.res, new_row], ignore_index = True)
 
-                    if not self.check_folder_exist(category_folder, name):
-                        category_folder_path, current_path, legacy_path = self.create_current_legacy(category_folder, name)
-                        wait = WebDriverWait(self.driver, 10)
-                        tag = i.find_element(By.LINK_TEXT, 'Download CSV')
-                        download = wait.until(EC.element_to_be_clickable(tag))
-                        self.driver.execute_script("arguments[0].click();", download)
-                        print('Downloading file...')
-                        time.sleep(3)
-                        button = self.driver.find_element(By.XPATH, "/html//div[@id='main-content']/div//ol[@class='search-list']//dialog/div[@role='document']/main[@role='main']//button[.='Yes, download']")
-                        button.click()
-                        print('Download Success')
-                        if name == "National Downloadable File":
-                            time.sleep(180)
-                        else:
-                            time.sleep(30)
-                        file_name = self.newest(source)
-                        file_dictionary[name] = file_name
-                        self.move_csv_files(source, current_path, file_name)
-                    else:
-                        pass
+                    # if not self.check_folder_exist(category_folder, name):
+                    #     category_folder_path, current_path, legacy_path = self.create_current_legacy(category_folder, name)
+                    #     self.download(i, name)
+                    #     file_name = self.newest(source)
+                    #     file_dictionary[name] = file_name
+                    #     self.move_csv_files(source, current_path, file_name)
+                    # else:
+                    #     updated_date_status = self.last_date_same_asin_metadata(cat, name, last_update)
+                    #     if updated_date_status:
+                    #         pass
+                    #     else:
+                    #         self.download(i, name)
+                    #         file_name = self.newest(source)
+                    #         file_dictionary[name] = file_name
+                    #         current = os.path.join(cat, name, "current")
+                    #         legacy = os.path.join(cat, name, "legacy")
+                    #         self.move_csv_files(current, legacy, file_name)
+                    #         self.move_csv_files(source, current, file_name)
+
 
                 try:
                     next_button = self.driver.find_element(By.XPATH, "/html//div[@id='main-content']/div/div[@class='row']/div[1]/div[@class='pagination-wrapper']/div/div[@class='pagination-container']/nav[@class='ds-c-pagination']/button[2]")
@@ -213,8 +256,6 @@ class WebScrape():
             print("Scrapping Successful in " + cat + " page")
             
 
-
-
     def dataframe_to_excel(self):
         book = load_workbook("metadata_file.xlsx")
         with pd.ExcelWriter("metadata_file.xlsx", engine='openpyxl', mode='a') as writer:
@@ -224,4 +265,4 @@ class WebScrape():
                     book.remove(sheet)
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
                 else:
-                    df.to_excel(writer, sheet_name=sheet_name, index=False)
+                    df.to_excel(writer, sheet_name=sheet_name, index=False) 

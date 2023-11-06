@@ -8,4 +8,5 @@ if __name__ == '__main__':
     ws.find_link_text()
     ws.scrape_each_category()
     ws.dataframe_to_excel()
+    ws.pickle_dictionary()
     print(ws.df_dic.keys())
