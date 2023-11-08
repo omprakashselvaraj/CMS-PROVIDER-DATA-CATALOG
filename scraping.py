@@ -214,24 +214,24 @@ class WebScrape():
                     new_row = pd.DataFrame([dic])
                     self.res = pd.concat([self.res, new_row], ignore_index = True)
 
-                    # if not self.check_folder_exist(category_folder, name):
-                    #     category_folder_path, current_path, legacy_path = self.create_current_legacy(category_folder, name)
-                    #     self.download(i, name)
-                    #     file_name = self.newest(source)
-                    #     file_dictionary[name] = file_name
-                    #     self.move_csv_files(source, current_path, file_name)
-                    # else:
-                    #     updated_date_status = self.last_date_same_asin_metadata(cat, name, last_update)
-                    #     if updated_date_status:
-                    #         pass
-                    #     else:
-                    #         self.download(i, name)
-                    #         file_name = self.newest(source)
-                    #         file_dictionary[name] = file_name
-                    #         current = os.path.join(cat, name, "current")
-                    #         legacy = os.path.join(cat, name, "legacy")
-                    #         self.move_csv_files(current, legacy, file_name)
-                    #         self.move_csv_files(source, current, file_name)
+                    if not self.check_folder_exist(category_folder, name):
+                        category_folder_path, current_path, legacy_path = self.create_current_legacy(category_folder, name)
+                        self.download(i, name)
+                        file_name = self.newest(source)
+                        file_dictionary[name] = file_name
+                        self.move_csv_files(source, current_path, file_name)
+                    else:
+                        updated_date_status = self.last_date_same_asin_metadata(cat, name, last_update)
+                        if updated_date_status:
+                            pass
+                        else:
+                            self.download(i, name)
+                            file_name = self.newest(source)
+                            file_dictionary[name] = file_name
+                            current = os.path.join(cat, name, "current")
+                            legacy = os.path.join(cat, name, "legacy")
+                            self.move_csv_files(current, legacy, file_name)
+                            self.move_csv_files(source, current, file_name)
 
 
                 try:
